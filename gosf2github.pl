@@ -1,6 +1,7 @@
 #!/usr/bin/env perl -w
 use strict;
 use JSON;
+use HTML::Entities;
 
 my $json = new JSON;
 
@@ -102,7 +103,8 @@ foreach my $ticket (@tickets) {
         $assignee = $default_assignee;
     }
 
-    my $body = $ticket->{description};
+    # fix n-encoded html-entities, like &amp;amp;amp;amp;amp;quot;
+    my $body = decode_entities(decode_entities(decode_entities(decode_entities(decode_entities(decode_entities(decode_entities($ticket->{description})))))));
 
     # fix SF-specific markdown
     $body =~ s/\~\~\~\~/```/g;
@@ -150,7 +152,7 @@ foreach my $ticket (@tickets) {
         }
         else {
             # Textile
-            $body .= "\n\nOriginal Ticket: \"$sf_tracker/$num\":$turl";
+            $body .= "\n\nOriginal Ticket: $turl";
         }
     }
 
