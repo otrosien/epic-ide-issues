@@ -78,6 +78,13 @@ my $obj = $json->decode( $blob );
 my @tickets = @{$obj->{tickets}};
 my @milestones = @{$obj->{milestones}};
 
+my %closed_statuses;
+if ($obj->{closed_status_names}) {
+    %closed_statuses = map { $_ => 1 } split(" ", $obj->{closed_status_names});
+} else {
+    %closed_statuses = map { $_ => 1 } qw(Fixed Done WontFix Verified Duplicate Invalid);
+}
+
 #foreach my $k (keys %$obj) {
 #    print "$k\n";
 #}
@@ -163,7 +170,7 @@ foreach my $ticket (@tickets) {
         "created_at" => cvt_time($ticket->{created_date}),    ## check
         "assignee" => $assignee,
         #"milestone" => 1,  # todo
-        "closed" => $ticket->{status} =~ /(Fixed|Done|WontFix|Verified|Duplicate|Invalid)/ ? JSON::true : JSON::false ,
+        "closed" => $closed_statuses{$ticket->{status}} ? JSON::true : JSON::false,
         "labels" => \@labels,
     };
     my @comments = ();
