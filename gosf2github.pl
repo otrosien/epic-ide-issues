@@ -16,6 +16,9 @@ my $sf_tracker = "";  ## e.g. obo/mouse-anatomy-requests
 my @default_labels = ();
 my $genpurls;
 my $start_from = 1;
+
+if (!(@ARGV)) { usage(); exit 1; }
+
 while ($ARGV[0] =~ /^\-/) {
     my $opt = shift @ARGV;
     if ($opt eq '-h' || $opt eq '--help') {
@@ -266,7 +269,7 @@ sub scriptname {
 sub usage {
     my $sn = scriptname();
 
-    <<EOM;
+    print <<EOM;
 $sn [-h] [-u USERMAP] [-c COLLABINFO] [-r REPO] [-t OAUTH_TOKEN] [-a USERNAME] [-l LABEL]* [-s SF_TRACKER] [--dry-run] TICKETS-JSON-FILE
 
 Migrates tickets from sourceforge to github, using new v3 GH API, documented here: https://gist.github.com/jonmagic/5282384165e0f86ef105
