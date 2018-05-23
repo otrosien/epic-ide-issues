@@ -135,19 +135,11 @@ foreach my $ticket (@tickets) {
     $created_date =~ s/\-//g;
     $created_date =~ s/\s.*//g;
 
-    my $is_markdown = 1;
-    ##  Issues and comments with the creation date before April 20
-    ##  2009 at 19:00:00 (UTC) will get parsed and rendered using
-    ##  Textile, which is what GitHub used by default before Markdown
+    # Prepend all the info regarding the original ticket
 
-    # Good enough, tough luck if you're after 7pm on the 20th
-    if ($created_date < 20090421) {
-        $is_markdown = 0;
-    }
-
-    # it is tempting to prefix with '@' but this may generate spam and get the bot banned
-    #$body .= "\n\nOriginal comment by: \@".map_user($ticket->{reported_by});
-    $body .= "\n\nReported by: ".map_user($ticket->{reported_by});
+    my $header;
+    my $orig_reporter = map_user($ticket->{reported_by});
+    $header .= bold("Reported by:")." ".user($orig_reporter);
 
     my $num = $ticket->{ticket_num};
     printf "Ticket: ticket_num: %d of %d total (last ticket_num=%d)\n", $num, scalar(@tickets), $tickets[-1]->{ticket_num};
@@ -157,19 +149,13 @@ foreach my $ticket (@tickets) {
     }
     if ($sf_tracker) {
         my $turl = "$sf_base_url$sf_tracker/$num";
-        if ($is_markdown) {
-            $body .= "\n\nOriginal Ticket: [$sf_tracker/$num]($turl)";
-        }
-        else {
-            # Textile
-            $body .= "\n\nOriginal Ticket: \"$sf_tracker/$num\":$turl";
-        }
+        $header .= "\n".bold("Original Ticket:")." [$sf_tracker/$num]($turl)";
     }
 
     my $issue =
     {
         "title" => $ticket->{summary},
-        "body" => $body,
+        "body" => $header."\n\n".$body,
         "created_at" => cvt_time($ticket->{created_date}),    ## check
         "assignee" => $assignee,
         #"milestone" => 1,  # todo
@@ -178,10 +164,11 @@ foreach my $ticket (@tickets) {
     };
     my @comments = ();
     foreach my $post (@{$ticket->{discussion_thread}->{posts}}) {
+        my $commenter = map_user($post->{author});
         my $comment =
         {
             "created_at" => cvt_time($post->{timestamp}),
-            "body" => $post->{text}."\n\nOriginal comment by: ".map_user($post->{author}),
+            "body" => $post->{text}."\n\n".bold("Original comment by:")." ".user($commenter)
         };
         push(@comments, $comment);
     }
@@ -265,6 +252,18 @@ sub scriptname {
     pop @p;
 }
 
+sub user
+{
+    my $username = shift;
+    # it is tempting to prefix with '@' but this may generate spam and get the bot banned
+    return "[$username](https://github.com/$username)";
+}
+
+sub bold
+{
+    my $text = shift;
+    return "**".$text."**";
+}
 
 sub usage {
     my $sn = scriptname();
