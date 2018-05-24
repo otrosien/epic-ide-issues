@@ -16,6 +16,7 @@ my $sf_tracker = "";  ## e.g. obo/mouse-anatomy-requests
 my @default_labels = ();
 my $genpurls;
 my $start_from = 1;
+my $include_closed = 0;
 
 if (!(@ARGV)) { usage(); exit 1; }
 
@@ -60,6 +61,9 @@ while ($ARGV[0] =~ /^\-/) {
     elsif ($opt eq '-u' || $opt eq '--usermap') {
         $usermap = parse_json_file(shift @ARGV);
     }
+    elsif ($opt eq '-C') {
+        $include_closed = 1;
+    }
     else {
         die $opt;
     }
@@ -97,7 +101,14 @@ if ($obj->{closed_status_names}) {
 } @tickets;
 
 foreach my $ticket (@tickets) {
-    
+
+    my $closed = $closed_statuses{$ticket->{status}} ? JSON::true : JSON::false;
+
+    if ($closed && !$include_closed) {
+        print "Skipping closed ticket #".$ticket->{ticket_num}." ".$ticket->{summary}."\n";
+        next;
+    }
+
     my $custom = $ticket->{custom_fields} || {};
     my $milestone = $custom->{_milestone};
 
@@ -159,7 +170,7 @@ foreach my $ticket (@tickets) {
         "created_at" => cvt_time($ticket->{created_date}),    ## check
         "assignee" => $assignee,
         #"milestone" => 1,  # todo
-        "closed" => $closed_statuses{$ticket->{status}} ? JSON::true : JSON::false,
+        "closed" => $closed,
         "labels" => \@labels,
     };
     my @comments = ();
@@ -319,6 +330,10 @@ ARGUMENTS:
                  Start the import from (sourceforge) ticket number NUM. This can be useful for resuming a previously stopped or failed import.
                  For example, if you have already imported 1-100, then the next github number assigned will be 101 (this cannot be controlled).
                  You will need to run the script again with argument: -i 101
+
+   -C | --include-closed
+                 By default, closed issues are not imported.
+                 Specify this option to import them.
 
    -s | --sf-tracker  NAME
                  E.g. obo/mouse-anatomy-requests
