@@ -1,6 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
 use JSON;
+use Getopt::Long qw(:config gnu_getopt);
 
 my $json = new JSON;
 
@@ -18,56 +19,27 @@ my $genpurls;
 my $start_from = 1;
 my $include_closed = 0;
 
-if (!(@ARGV)) { usage(); exit 1; }
+sub usage($);
 
-while ($ARGV[0] =~ /^\-/) {
-    my $opt = shift @ARGV;
-    if ($opt eq '-h' || $opt eq '--help') {
-        print usage();
-        exit 0;
-    }
-    elsif ($opt eq '-t' || $opt eq '--token') {
-        $GITHUB_TOKEN = shift @ARGV;
-    }
-    elsif ($opt eq '-r' || $opt eq '--repo') {
-        $REPO = shift @ARGV;
-    }
-    elsif ($opt eq '-a' || $opt eq '--assignee') {
-        $default_assignee = shift @ARGV;
-    }
-    elsif ($opt eq '-s' || $opt eq '--sf-tracker') {
-        $sf_tracker = shift @ARGV;
-    }
-    elsif ($opt eq '-d' || $opt eq '--delay') {
-        $sleeptime = shift @ARGV;
-    }
-    elsif ($opt eq '-i' || $opt eq '--initial-ticket') {
-        $start_from = shift @ARGV;
-    }
-    elsif ($opt eq '-l' || $opt eq '--label') {
-        push(@default_labels, shift @ARGV);
-    }
-    elsif ($opt eq '-k' || $opt eq '--dry-run') {
-        $dry_run = 1;
-    }
-    elsif ($opt eq '--generate-purls') {
-        # if you are not part of the OBO Library project, you can safely ignore this option;
-        # It will replace IDs of form FOO:nnnnn with PURLs
-        $genpurls = 1;
-    }
-    elsif ($opt eq '-c' || $opt eq '--collaborators') {
-        @collabs = @{parse_json_file(shift @ARGV)};
-    }
-    elsif ($opt eq '-u' || $opt eq '--usermap') {
-        $usermap = parse_json_file(shift @ARGV);
-    }
-    elsif ($opt eq '-C') {
-        $include_closed = 1;
-    }
-    else {
-        die $opt;
-    }
-}
+if (!(@ARGV)) { usage(1); }
+
+GetOptions ("h|help" => sub { usage(0); },
+            "t|token=s" => \$GITHUB_TOKEN,
+            "r|repo=s" => \$REPO,
+            "a|assignee=s" => \$default_assignee,
+            "s|sf-tracker=s" => \$sf_tracker,
+            "d|delay=i" => \$sleeptime,
+            "i|initial-ticket=i" => \$start_from,
+            "l|label=s" => \@default_labels,
+            # if you are not part of the OBO Library project, you can safely ignore this -g option;
+            # It will replace IDs of form FOO:nnnnn with PURLs
+            "g|generate-purls" => \$genpurls,
+            "c|collaborators=s" => sub { @collabs = @{parse_json_file($_[1])} },
+            "u|usermap=s" => sub { $usermap = parse_json_file($_[1]) },
+            "C|include-closed" => \$include_closed,
+            "k|dry-run" => \$dry_run)
+or usage(1);
+
 print STDERR "TICKET JSON: @ARGV\n";
 
 if (!$default_assignee) {
@@ -276,7 +248,7 @@ sub bold
     return "**".$text."**";
 }
 
-sub usage {
+sub usage($) {
     my $sn = scriptname();
 
     print <<EOM;
@@ -384,4 +356,5 @@ Inspiration: https://github.com/ttencate/sf2github
 Thanks: Ivan Žužak (GitHub support), Ville Skyttä (https://github.com/scop)
 
 EOM
+exit(shift);
 }
