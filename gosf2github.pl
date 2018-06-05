@@ -51,7 +51,7 @@ GetOptions ("h|help" => sub { usage(0); },
             "k|dry-run" => \$dry_run)
 or usage(1);
 
-print STDERR "TICKET JSON: @ARGV\n";
+print "TICKET JSON: @ARGV\n";
 
 my %collabh = ();
 foreach (@collabs) {
@@ -103,7 +103,7 @@ foreach my $ticket (@tickets) {
     }
 
     my $custom = $ticket->{custom_fields} || {};
-    my $milestone = $custom->{_milestone};
+    my $milestone = $custom->{_milestone} || "";
 
     my @labels = (@default_labels,  @{$ticket->{labels}});
 
@@ -144,8 +144,14 @@ foreach my $ticket (@tickets) {
 
     my $num = $ticket->{ticket_num};
     printf "Ticket: ticket_num: %d of %d total (last ticket_num=%d)\n", $num, scalar(@tickets), $tickets[-1]->{ticket_num};
+    printf "        summary: %s\n", $ticket->{summary};
+    printf "        milestone: %s\n", $milestone;
+    if (!$ticket->{summary}) {
+        print "        INVALID TICKET DATA, SKIPPING\n";
+        next;
+    }
     if ($num < $start_from) {
-        print STDERR "SKIPPING: $num\n";
+        print "        SKIPPING: $num\n";
         next;
     }
     if ($sf_tracker) {
@@ -194,7 +200,7 @@ foreach my $ticket (@tickets) {
                        $GITHUB_TOKEN,
                        $str))
     {
-        print STDERR "To resume, use the -i $num option\n";
+        print "To resume, use the -i $num option\n";
         exit(1);
     }
     sleep($sleeptime);
@@ -218,6 +224,8 @@ sub import_milestones {
         }
 
         my $str = $json->utf8->encode($milestone);
+
+        printf("Importing milestone '%s'\n", $milestone->{title});
 
         if (!do_gh_request("$REPO/milestones",
                            "vnd.github.v3+json",
@@ -265,7 +273,7 @@ sub do_gh_request
         }
 
         if (!$res->is_success) {
-            print STDERR "FAILED: ".$res->status_line."\n";
+            print "FAILED: ".$res->status_line."\n";
             return 0;
         }
     }
