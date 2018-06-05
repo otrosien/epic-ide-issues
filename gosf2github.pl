@@ -21,6 +21,7 @@ my @default_labels = ();
 my $genpurls;
 my $start_from = 1;
 my $include_closed = 0;
+my $verbose = 0;
 
 sub usage($);
 
@@ -40,6 +41,7 @@ GetOptions ("h|help" => sub { usage(0); },
             "c|collaborators=s" => sub { @collabs = @{parse_json_file($_[1])} },
             "u|usermap=s" => sub { $usermap = parse_json_file($_[1]) },
             "C|include-closed" => \$include_closed,
+            "v|verbose" => \$verbose,
             "k|dry-run" => \$dry_run)
 or usage(1);
 
@@ -176,7 +178,7 @@ foreach my $ticket (@tickets) {
 #    $req->header(Accept => "application/vnd.github.v3+json");
     $req->header(Authorization => "token $GITHUB_TOKEN");
     $req->content($str);
-    print Dumper($req);
+    print Dumper($req) if $verbose;
 
     if ($dry_run) {
         print "DRY RUN: not executing\n";
@@ -317,6 +319,9 @@ ARGUMENTS:
    -s | --sf-tracker  NAME
                  E.g. obo/mouse-anatomy-requests
                  If specified, will append the original URL to the body of the new issue. E.g. https://sourceforge.net/p/obo/mouse-anatomy-requests/90
+
+   -v | --verbose
+                 If specified, enables verbose output. That, for instance, includes dumping of requests to GitHub to console for debugging purposes
 
    --generate-purls
                  OBO Ontologies only: converts each ID of the form `FOO:nnnnnnn` into a PURL.
