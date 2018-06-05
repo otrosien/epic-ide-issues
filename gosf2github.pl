@@ -25,6 +25,7 @@ my $genpurls;
 my $start_from = 1;
 my $include_closed = 0;
 my $verbose = 0;
+my $user_agent_str = "sf2gh/1.0";
 
 sub usage($);
 
@@ -188,17 +189,61 @@ foreach my $ticket (@tickets) {
     };
     my $str = $json->utf8->encode($content);
 
-    #  https://gist.github.com/jonmagic/5282384165e0f86ef105
+    if (!do_gh_request("$REPO/import/issues",
+                       "vnd.github.golden-comet-preview+json",
+                       $GITHUB_TOKEN,
+                       $str))
+    {
+        print STDERR "To resume, use the -i $num option\n";
+        exit(1);
+    }
+    sleep($sleeptime);
+}
 
-    my $ua = LWP::UserAgent->new;
-    my $gh_url = "https://api.github.com/repos/$REPO/import/issues";
+exit 0;
 
-    $ua->agent("sf2gh/1.0");
-    my $req = HTTP::Request->new(POST => $gh_url);
-    $req->header(Accept => "application/vnd.github.golden-comet-preview+json");
-#    $req->header(Accept => "application/vnd.github.v3+json");
-    $req->header(Authorization => "token $GITHUB_TOKEN");
-    $req->content($str);
+sub import_milestones {
+
+    foreach(@milestones) {
+        my $milestone = {
+            "title" => $_->{name},
+            "state" => $_->{complete} ? 'closed' : 'open',
+            "description" => $_->{description},
+        };
+
+        # Add due_date if defined
+        if ($_->{due_date}) {
+            my $dt = strptime("%m/%d/%Y", $_->{due_date});
+            $milestone->{due_on} = strftime("%FT%TZ", $dt);
+        }
+
+        my $str = $json->utf8->encode($milestone);
+
+        if (!do_gh_request("$REPO/milestones",
+                           "vnd.github.v3+json",
+                           $GITHUB_TOKEN,
+                           $str))
+        {
+            exit(1);
+        }
+
+        sleep($sleeptime);
+    }
+}
+
+sub do_gh_request
+{
+    my $uri = shift;
+    my $schema = shift;
+    my $token = shift;
+    my $content = shift;
+    my $req = HTTP::Request->new(POST => "https://api.github.com/repos/$uri");
+    my $ua = LWP::UserAgent->new(agent => $user_agent_str);
+
+    $req->header(Accept => "application/$schema");
+    $req->header(Authorization => "token $token");
+    $req->content($content);
+
     print Dumper($req) if $verbose;
 
     if ($dry_run) {
@@ -220,65 +265,13 @@ foreach my $ticket (@tickets) {
         }
 
         if (!$res->is_success) {
-            print STDERR "FAILED: $res->status_line\n";
-            print STDERR "To resume, use the -i $num option\n";
-            exit(1);
+            print STDERR "FAILED: ".$res->status_line."\n";
+            return 0;
         }
-        sleep($sleeptime);
     }
+    return 1;
 }
 
-exit 0;
-
-sub import_milestones {
-
-    foreach(@milestones) {
-        my $milestone = {
-            "title" => $_->{name},
-            "state" => $_->{complete} ? 'closed' : 'open',
-            "description" => $_->{description},
-        };
-
-        # Add due_date if defined
-        if ($_->{due_date}) {
-            my $dt = strptime("%m/%d/%Y", $_->{due_date});
-            $milestone->{due_on} = strftime("%FT%TZ", $dt);
-        }
-
-        my $str = $json->utf8->encode($milestone);
-        my $jsfile = 'foo.json';
-        open(F,">$jsfile") || die $jsfile;
-        print F $str;
-        close(F);
-
-        my $ACCEPT = "application/vnd.github.v3+json";   # https://developer.github.com/v3/
-        my $command = "curl -X POST -H \"Authorization: token $GITHUB_TOKEN\" -H \"Accept: $ACCEPT\" -d \@$jsfile https://api.github.com/repos/$REPO/milestones\n";
-        print $command;
-        if ($dry_run) {
-            print "DRY RUN: not executing\n";
-            print "$str\n";
-        }
-        else {
-            # yes, I'm really doing this via a shell call to curl, and not
-            # LWP or similar, I prefer it this way
-            my $err = system($command);
-            if ($err) {
-                print STDERR "FAILED: $command\n";
-                print STDERR "Retrying once...\n";
-                # HARDCODE ALERT: do a single retry
-                sleep($sleeptime * 5);
-                $err = system($command);
-                if ($err) {
-                    print STDERR "FAILED: $command\n";
-                    exit(1);
-                }
-            }
-        }
-        #die;
-        sleep($sleeptime);
-    }
-
-}
 
 sub parse_json_file {
     my $f = shift;
