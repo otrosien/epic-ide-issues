@@ -1,6 +1,9 @@
 #!/usr/bin/perl -w
 use strict;
 use JSON;
+use HTTP::Request;
+use Data::Dumper;
+use LWP;
 use Getopt::Long qw(:config gnu_getopt);
 
 my $json = new JSON;
@@ -156,47 +159,51 @@ foreach my $ticket (@tickets) {
         push(@comments, $comment);
     }
 
-    my $req = {
+    my $content = {
         issue => $issue,
         comments => \@comments
     };
-    my $str = $json->utf8->encode( $req );
-    #print $str,"\n";
-    my $jsfile = 'foo.json';
-    open(F,">$jsfile") || die $jsfile;
-    print F $str;
-    close(F);
+    my $str = $json->utf8->encode($content);
 
     #  https://gist.github.com/jonmagic/5282384165e0f86ef105
-    my $ACCEPT = "application/vnd.github.golden-comet-preview+json";
-    #my $ACCEPT = "application/vnd.github.v3+json";   # https://developer.github.com/v3/
 
-    my $command = "curl -X POST -H \"Authorization: token $GITHUB_TOKEN\" -H \"Accept: $ACCEPT\" -d \@$jsfile https://api.github.com/repos/$REPO/import/issues\n";
-    print $command;
+    my $ua = LWP::UserAgent->new;
+    my $gh_url = "https://api.github.com/repos/$REPO/import/issues";
+
+    $ua->agent("sf2gh/1.0");
+    my $req = HTTP::Request->new(POST => $gh_url);
+    $req->header(Accept => "application/vnd.github.golden-comet-preview+json");
+#    $req->header(Accept => "application/vnd.github.v3+json");
+    $req->header(Authorization => "token $GITHUB_TOKEN");
+    $req->content($str);
+    print Dumper($req);
+
     if ($dry_run) {
         print "DRY RUN: not executing\n";
     }
     else {
-        # yes, I'm really doing this via a shell call to curl, and not
-        # LWP or similar, I prefer it this way
-        my $err = system($command);
-        if ($err) {
-            print STDERR "FAILED: $command\n";
-            print STDERR "Retrying once...\n";
-            # HARDCODE ALERT: do a single retry
-            sleep($sleeptime * 5);
-            $err = system($command);
-            if ($err) {
-                print STDERR "FAILED: $command\n";
-                print STDERR "To resume, use the -i $num option\n";
-                exit(1);
-            }
-        }
-    }
-    #die;
-    sleep($sleeptime);
-}
+        my $retry = 1;
+        my $res;
 
+        TRY: {
+            do {
+                $res = $ua->request($req);
+
+                if ($res->is_success) {
+                    print "SUCCESS\n";
+                    last TRY;
+                }
+            } while($retry-- && sleep(5 * $sleeptime))
+        }
+
+        if (!$res->is_success) {
+            print STDERR "FAILED: $res->status_line\n";
+            print STDERR "To resume, use the -i $num option\n";
+            exit(1);
+        }
+        sleep($sleeptime);
+    }
+}
 
 exit 0;
 
@@ -260,7 +267,6 @@ Requirements:
 
  * This assumes that you have exported your tickets from SF. E.g. from a page like this: https://sourceforge.net/p/obo/admin/export
  * You have a github account and have created an OAuth token here: https://github.com/settings/tokens
- * You have "curl" in your PATH
 
 Example Usage:
 
@@ -272,7 +278,8 @@ gosf2github.pl -a cmungall -u users_sf2gh.json -c cell-collab.json -r obophenoty
 ARGUMENTS:
 
    -k | --dry-run
-                 Do not execute github API calls; print curl statements instead
+                 Do not execute github API calls
+                 Only parse tickets and dump requests (if -v is specified)
 
    -r | --repo   REPO *REQUIRED*
                  Examples: cmungall/sf-test, obophenotype/cell-ontology
@@ -325,15 +332,8 @@ NOTES:
 HOW IT WORKS:
 
 The script iterates through every ticket in the json dump. For each
-ticket, it prepares an API post request to the new GitHub API.
-
-The contents of the request are placed in a directory `foo.json` in
-your home dir, and then this is fed via a command line call to
-`curl`. Yes, this is hacky but I prefer it this way. Feel free to
-submit a fix via pull request if this bothers you.
-
-(warning: because if this you should never run >1 instance of this
-script at the same time in the same directory)
+ticket, it prepares an API post request to the new GitHub API and
+posts it using LWP.
 
 The script will then sleep for 3s before continuing on to the next ticket.
  * all issues and comments will appear to have originated from the user who issues the OAuth token
