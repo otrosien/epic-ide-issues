@@ -88,11 +88,11 @@ foreach my $ticket (@tickets) {
     my $custom = $ticket->{custom_fields} || {};
     my $milestone = $custom->{_milestone};
 
-    my @labels = (@default_labels,  @{$ticket->{labels}});
+    my @labels = (@default_labels, map { "in:" . $_ } @{$ticket->{labels}});
 
-    push(@labels, "sourceforge", "auto-migrated", map_priority($custom->{_priority}));
+    push(@labels, "from:sourceforge", map_priority($custom->{_priority}));
     if ($milestone) {
-        push(@labels, $milestone);
+        push(@labels, "affects:" . $milestone);
     }
 
     my $assignee = map_user($ticket->{assigned_to});
